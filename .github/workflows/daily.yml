@@ -1,0 +1,49 @@
+name: Daily Nifty Update
+
+on:
+  schedule:
+    # 13:30 UTC = 19:00 IST, Monday-Friday. GitHub cron is best-effort and
+    # may run late; that is fine for a once-a-day job.
+    - cron: '30 13 * * 1-5'
+  workflow_dispatch:   # lets you run it manually from the Actions tab
+
+permissions:
+  contents: write      # allow the job to commit the updated files back
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Fetch latest close
+        id: fetch
+        run: python fetch_close.py
+
+      - name: Rebuild app
+        run: |
+          if [ -n "${{ steps.fetch.outputs.date }}" ]; then
+            echo "Adding ${{ steps.fetch.outputs.date }} ${{ steps.fetch.outputs.close }}"
+            python nifty_build.py --add "${{ steps.fetch.outputs.date }}" "${{ steps.fetch.outputs.close }}"
+          else
+            echo "No new session - rebuilding from current state."
+            python nifty_build.py
+          fi
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "nifty-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if git diff --staged --quiet; then
+            echo "Nothing changed."
+          else
+            git commit -m "Daily update ${{ steps.fetch.outputs.date }}"
+            git push
+          fi

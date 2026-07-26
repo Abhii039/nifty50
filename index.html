@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nifty 50 F&amp;O Analyzer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--green:#3fb950;--red:#f85149;--blue:#58a6ff;--amber:#d29922;--purple:#bc8cff}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;padding:20px;max-width:1200px;margin:0 auto}
+h1{font-size:22px;display:flex;align-items:center;gap:10px}
+h1 .badge{font-size:11px;background:var(--blue);color:#fff;padding:2px 8px;border-radius:10px;font-weight:600}
+.sub{color:var(--muted);font-size:12px;margin:4px 0 14px}
+.warn{background:#3d2c00;border:1px solid var(--amber);color:#e3b341;font-size:12px;padding:10px 14px;border-radius:8px;margin-bottom:16px;line-height:1.5}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.card .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.card .val{font-size:20px;font-weight:700;margin-top:4px}
+.card .sm{font-size:12px;color:var(--muted);margin-top:2px}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px}
+.panel h2{font-size:14px;margin-bottom:10px;color:var(--text)}
+.panel .note{font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
+.toolbar button{background:#21262d;border:1px solid var(--border);color:var(--text);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+.toolbar button.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.chartbox{position:relative;height:380px}
+.chartbox.small{height:180px}
+.up{color:var(--green)}.down{color:var(--red)}.neu{color:var(--amber)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left}
+th{color:var(--muted);font-size:11px;text-transform:uppercase}
+.chain td,.chain th{text-align:right;padding:6px 10px;font-variant-numeric:tabular-nums}
+.chain th{text-align:right}
+.chain .strike{text-align:center;font-weight:700;background:#11151c}
+.fno-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.inputs{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.inputs label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+.inputs input{background:#0d1117;border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;width:110px;font-size:13px}
+.score{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:12px}
+.card{transition:transform .15s ease,border-color .15s ease}
+.card:hover{transform:translateY(-2px);border-color:#3d4657}
+.card .val .arrow{font-size:15px;margin-left:2px}
+.verdict-wrap{display:flex;gap:26px;align-items:center;flex-wrap:wrap}
+.verdict-text{flex:1;min-width:230px}
+#verdictWord{font-size:28px;font-weight:800;letter-spacing:.5px}
+.verdict-text p{color:var(--muted);font-size:13px;margin-top:8px;line-height:1.6}
+.gauge-hint{color:var(--muted);font-size:11px;text-align:center;margin-top:2px}
+#three3d{height:440px;position:relative;cursor:grab;border-radius:8px;background:radial-gradient(ellipse at 50% 30%,#12202e 0%,#0d1117 70%)}
+#three3d canvas{display:block;border-radius:8px}
+.legend3d{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-top:8px;align-items:center}
+.legend3d span{display:inline-flex;align-items:center;gap:6px}
+.legend3d i{width:11px;height:11px;border-radius:3px;display:inline-block}
+h1 .badge{background:linear-gradient(90deg,#58a6ff,#bc8cff,#58a6ff);background-size:200% 100%;animation:shine 4s linear infinite}
+@keyframes shine{0%{background-position:0 0}100%{background-position:200% 0}}
+footer{color:var(--muted);font-size:11px;text-align:center;margin:20px 0;line-height:1.6}
+</style>
+</head>
+<body>
+<h1>NIFTY 50 <span class="badge">F&amp;O ANALYZER</span></h1>
+<div class="sub" id="updated"></div>
+<div class="warn"><b>Not investment advice.</b> Projections and option prices below are model outputs, not live market quotes. No model reliably forecasts index prices, and the option chain is <b>theoretical (Black-Scholes)</b> &mdash; real bid/ask will differ, often materially, because of volatility skew and supply/demand. F&amp;O trading can lose your entire capital. Data: Yahoo Finance (^NSEI), daily closes.</div>
+
+<div class="cards" id="cards"></div>
+
+<div class="panel">
+  <h2>At a Glance &mdash; What the Data Says</h2>
+  <div class="verdict-wrap">
+    <div><div id="gauge"></div><div class="gauge-hint">Composite of trend, momentum &amp; RSI</div></div>
+    <div class="verdict-text"><div id="verdictWord"></div><p id="verdictExplain"></p></div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Price, Moving Averages &amp; 30-Day Projection Cone</h2>
+  <div class="toolbar">
+    <button data-range="63">3M</button>
+    <button data-range="126">6M</button>
+    <button data-range="250" class="on">1Y</button>
+    <button data-range="9999">2Y</button>
+    <span style="width:12px"></span>
+    <button data-tog="sma" class="on">SMA 20/50/200</button>
+    <button data-tog="bb">Bollinger</button>
+    <button data-tog="proj" class="on">Projection</button>
+  </div>
+  <div class="chartbox"><canvas id="mainChart"></canvas></div>
+</div>
+
+<div class="panel"><h2>RSI (14)</h2><div class="chartbox small"><canvas id="rsiChart"></canvas></div></div>
+<div class="panel"><h2>MACD (12, 26, 9)</h2><div class="chartbox small"><canvas id="macdChart"></canvas></div></div>
+
+<div class="panel">
+  <h2>F&amp;O Calculator &mdash; Nifty Futures &amp; Options (lot size 75)</h2>
+  <div class="inputs">
+    <label>Days to expiry <input type="number" id="dte" value="30" min="1" max="365"></label>
+    <label>Risk-free rate % p.a. <input type="number" id="rfr" value="6.5" step="0.1"></label>
+    <label>Strikes each side <input type="number" id="nstr" value="8" min="3" max="15"></label>
+  </div>
+  <div class="fno-grid" id="fnoCards"></div>
+</div>
+
+<div class="panel">
+  <h2>Theoretical Option Chain (Black-Scholes)</h2>
+  <div class="note">Model prices, <b>not live market quotes.</b> "Bid" is an estimated sell price, "Ask" an estimated buy price (spread modelled around the theoretical value). Uses 20-day annualised volatility, flat across strikes &mdash; so it ignores the real-world volatility smile. ATM row highlighted.</div>
+  <table class="chain">
+    <thead><tr>
+      <th>Call Bid<br><span style="font-weight:400;text-transform:none">(sell)</span></th>
+      <th>Call Ask<br><span style="font-weight:400;text-transform:none">(buy)</span></th>
+      <th>Call LTP</th><th class="strike" style="text-align:center">Strike</th><th>Put LTP</th>
+      <th>Put Bid<br><span style="font-weight:400;text-transform:none">(sell)</span></th>
+      <th>Put Ask<br><span style="font-weight:400;text-transform:none">(buy)</span></th>
+    </tr></thead>
+    <tbody id="chainBody"></tbody>
+  </table>
+</div>
+
+<div class="panel">
+  <h2>3D Option Premium Landscape</h2>
+  <div class="note">Every bar is one strike's theoretical premium &mdash; <b>green calls</b> on the back row, <b>red puts</b> on the front. Each bar is labelled with its <b>strike price</b> (below) and <b>premium in ₹</b> (on top); the ATM strike is tagged and glows brightest. Taller bar = pricier option; the tallest sit deepest in-the-money. Drag to rotate, or let it spin. Updates live with the inputs above.</div>
+  <div class="toolbar"><button id="spinBtn" class="on">Auto-rotate: on</button></div>
+  <div id="three3d"></div>
+  <div class="legend3d"><span><i style="background:#3fb950"></i>Calls</span><span><i style="background:#f85149"></i>Puts</span><span>Brightest bar = ATM strike · drag to look around</span></div>
+</div>
+
+<div class="panel">
+  <h2>Prediction Accuracy Scoreboard</h2>
+  <div class="note">Each session the daily job logs a next-day prediction, then scores it once the real close arrives. This is the honest test of the model &mdash; watch whether directional accuracy actually beats 50%. It usually won't by much; index moves are close to a coin flip day to day.</div>
+  <div class="score" id="scoreCards"></div>
+  <table id="scoreTable"><thead><tr><th>Predicted on</th><th>For date</th><th>Ref close</th><th>Predicted</th><th>Actual</th><th>Abs err</th><th>Direction</th></tr></thead><tbody></tbody></table>
+</div>
+
+<div class="panel">
+  <h2>Signal Summary</h2>
+  <table id="sigTable"><thead><tr><th>Indicator</th><th>Value</th><th>Reading</th></tr></thead><tbody></tbody></table>
+</div>
+
+<footer>Educational tool only. Statistical projections assume the past return distribution continues &mdash; real markets gap on news, policy and global events.<br>Not affiliated with NSE. Rebuilt automatically each trading day.</footer>
+
+<script>
+const RAW = "2024-07-24,24413.5;2024-07-25,24406.1;2024-07-26,24834.8;2024-07-29,24836.1;2024-07-30,24857.3;2024-07-31,24951.2;2024-08-01,25010.9;2024-08-02,24717.7;2024-08-05,24055.6;2024-08-06,23992.6;2024-08-07,24297.5;2024-08-08,24117.0;2024-08-09,24367.5;2024-08-12,24347.0;2024-08-13,24139.0;2024-08-14,24143.8;2024-08-16,24541.2;2024-08-19,24572.7;2024-08-20,24698.8;2024-08-21,24770.2;2024-08-22,24811.5;2024-08-23,24823.2;2024-08-26,25010.6;2024-08-27,25017.8;2024-08-28,25052.3;2024-08-29,25151.9;2024-08-30,25235.9;2024-09-02,25278.7;2024-09-03,25279.8;2024-09-04,25198.7;2024-09-05,25145.1;2024-09-06,24852.2;2024-09-09,24936.4;2024-09-10,25041.1;2024-09-11,24918.4;2024-09-12,25388.9;2024-09-13,25356.5;2024-09-16,25383.8;2024-09-17,25418.6;2024-09-18,25377.6;2024-09-19,25415.8;2024-09-20,25790.9;2024-09-23,25939.1;2024-09-24,25940.4;2024-09-25,26004.2;2024-09-26,26216.1;2024-09-27,26178.9;2024-09-30,25810.8;2024-10-01,25796.9;2024-10-03,25250.1;2024-10-04,25014.6;2024-10-07,24795.8;2024-10-08,25013.2;2024-10-09,24981.9;2024-10-10,24998.4;2024-10-11,24964.3;2024-10-14,25127.9;2024-10-15,25057.3;2024-10-16,24971.3;2024-10-17,24749.8;2024-10-18,24854.1;2024-10-21,24781.1;2024-10-22,24472.1;2024-10-23,24435.5;2024-10-24,24399.4;2024-10-25,24180.8;2024-10-28,24339.2;2024-10-29,24466.8;2024-10-30,24340.8;2024-10-31,24205.3;2024-11-01,24304.3;2024-11-04,23995.3;2024-11-05,24213.3;2024-11-06,24484.1;2024-11-07,24199.3;2024-11-08,24148.2;2024-11-11,24141.3;2024-11-12,23883.4;2024-11-13,23559.1;2024-11-14,23532.7;2024-11-18,23453.8;2024-11-19,23518.5;2024-11-21,23349.9;2024-11-22,23907.3;2024-11-25,24221.9;2024-11-26,24194.5;2024-11-27,24274.9;2024-11-28,23914.2;2024-11-29,24131.1;2024-12-02,24276.1;2024-12-03,24457.2;2024-12-04,24467.4;2024-12-05,24708.4;2024-12-06,24677.8;2024-12-09,24619.0;2024-12-10,24610.1;2024-12-11,24641.8;2024-12-12,24548.7;2024-12-13,24768.3;2024-12-16,24668.3;2024-12-17,24336.0;2024-12-18,24198.8;2024-12-19,23951.7;2024-12-20,23587.5;2024-12-23,23753.4;2024-12-24,23727.7;2024-12-26,23750.2;2024-12-27,23813.4;2024-12-30,23644.9;2024-12-31,23644.8;2025-01-01,23742.9;2025-01-02,24188.7;2025-01-03,24004.8;2025-01-06,23616.1;2025-01-07,23707.9;2025-01-08,23688.9;2025-01-09,23526.5;2025-01-10,23431.5;2025-01-13,23085.9;2025-01-14,23176.1;2025-01-15,23213.2;2025-01-16,23311.8;2025-01-17,23203.2;2025-01-20,23344.8;2025-01-21,23024.7;2025-01-22,23155.3;2025-01-23,23205.3;2025-01-24,23092.2;2025-01-27,22829.2;2025-01-28,22957.3;2025-01-29,23163.1;2025-01-30,23249.5;2025-01-31,23508.4;2025-02-01,23482.2;2025-02-03,23361.1;2025-02-04,23739.3;2025-02-05,23696.3;2025-02-06,23603.3;2025-02-07,23559.9;2025-02-10,23381.6;2025-02-11,23071.8;2025-02-12,23045.3;2025-02-13,23031.4;2025-02-14,22929.3;2025-02-17,22959.5;2025-02-18,22945.3;2025-02-19,22932.9;2025-02-20,22913.2;2025-02-21,22795.9;2025-02-24,22553.3;2025-02-25,22547.6;2025-02-27,22545.1;2025-02-28,22124.7;2025-03-03,22119.3;2025-03-04,22082.7;2025-03-05,22337.3;2025-03-06,22544.7;2025-03-07,22552.5;2025-03-10,22460.3;2025-03-11,22497.9;2025-03-12,22470.5;2025-03-13,22397.2;2025-03-17,22508.8;2025-03-18,22834.3;2025-03-19,22907.6;2025-03-20,23190.7;2025-03-21,23350.4;2025-03-24,23658.3;2025-03-25,23668.7;2025-03-26,23486.8;2025-03-27,23591.9;2025-03-28,23519.3;2025-04-01,23165.7;2025-04-02,23332.3;2025-04-03,23250.1;2025-04-04,22904.4;2025-04-07,22161.6;2025-04-08,22535.8;2025-04-09,22399.2;2025-04-11,22828.6;2025-04-15,23328.6;2025-04-16,23437.2;2025-04-17,23851.7;2025-04-21,24125.6;2025-04-22,24167.3;2025-04-23,24328.9;2025-04-24,24246.7;2025-04-25,24039.3;2025-04-28,24328.5;2025-04-29,24335.9;2025-04-30,24334.2;2025-05-02,24346.7;2025-05-05,24461.2;2025-05-06,24379.6;2025-05-07,24414.4;2025-05-08,24273.8;2025-05-09,24008.0;2025-05-12,24924.7;2025-05-13,24578.3;2025-05-14,24666.9;2025-05-15,25062.1;2025-05-16,25019.8;2025-05-19,24945.4;2025-05-20,24683.9;2025-05-21,24813.4;2025-05-22,24609.7;2025-05-23,24853.2;2025-05-26,25001.2;2025-05-27,24826.2;2025-05-28,24752.4;2025-05-29,24833.6;2025-05-30,24750.7;2025-06-02,24716.6;2025-06-03,24542.5;2025-06-04,24620.2;2025-06-05,24750.9;2025-06-06,25003.1;2025-06-09,25103.2;2025-06-10,25104.3;2025-06-11,25141.4;2025-06-12,24888.2;2025-06-13,24718.6;2025-06-16,24946.5;2025-06-17,24853.4;2025-06-18,24812.1;2025-06-19,24793.3;2025-06-20,25112.4;2025-06-23,24971.9;2025-06-24,25044.3;2025-06-25,25244.8;2025-06-26,25549.0;2025-06-27,25637.8;2025-06-30,25517.1;2025-07-01,25541.8;2025-07-02,25453.4;2025-07-03,25405.3;2025-07-04,25461.0;2025-07-07,25461.3;2025-07-08,25522.5;2025-07-09,25476.1;2025-07-10,25355.3;2025-07-11,25149.8;2025-07-14,25082.3;2025-07-15,25195.8;2025-07-16,25212.1;2025-07-17,25111.4;2025-07-18,24968.4;2025-07-21,25090.7;2025-07-22,25060.9;2025-07-23,25219.9;2025-07-24,25062.1;2025-07-25,24837.0;2025-07-28,24680.9;2025-07-29,24821.1;2025-07-30,24855.1;2025-07-31,24768.3;2025-08-01,24565.3;2025-08-04,24722.8;2025-08-05,24649.6;2025-08-06,24574.2;2025-08-07,24596.2;2025-08-08,24363.3;2025-08-11,24585.1;2025-08-12,24487.4;2025-08-13,24619.3;2025-08-14,24631.3;2025-08-18,24876.9;2025-08-19,24980.7;2025-08-20,25050.6;2025-08-21,25083.8;2025-08-22,24870.1;2025-08-25,24967.8;2025-08-26,24712.1;2025-08-28,24500.9;2025-08-29,24426.8;2025-09-01,24625.1;2025-09-02,24579.6;2025-09-03,24715.1;2025-09-04,24734.3;2025-09-05,24741.0;2025-09-08,24773.2;2025-09-09,24868.6;2025-09-10,24973.1;2025-09-11,25005.5;2025-09-12,25114.0;2025-09-15,25069.2;2025-09-16,25239.1;2025-09-17,25330.3;2025-09-18,25423.6;2025-09-19,25327.1;2025-09-22,25202.3;2025-09-23,25169.5;2025-09-24,25056.9;2025-09-25,24890.8;2025-09-26,24654.7;2025-09-29,24634.9;2025-09-30,24611.1;2025-10-01,24836.3;2025-10-03,24894.3;2025-10-06,25077.7;2025-10-07,25108.3;2025-10-08,25046.2;2025-10-09,25181.8;2025-10-10,25285.3;2025-10-13,25227.3;2025-10-14,25145.5;2025-10-15,25323.6;2025-10-16,25585.3;2025-10-17,25709.8;2025-10-20,25843.2;2025-10-21,25868.6;2025-10-23,25891.4;2025-10-24,25795.2;2025-10-27,25966.1;2025-10-28,25936.2;2025-10-29,26053.9;2025-10-30,25877.8;2025-10-31,25722.1;2025-11-03,25763.3;2025-11-04,25597.7;2025-11-06,25509.7;2025-11-07,25492.3;2025-11-10,25574.3;2025-11-11,25694.9;2025-11-12,25875.8;2025-11-13,25879.2;2025-11-14,25910.1;2025-11-17,26013.4;2025-11-18,25910.1;2025-11-19,26052.7;2025-11-20,26192.2;2025-11-21,26068.2;2025-11-24,25959.5;2025-11-25,25884.8;2025-11-26,26205.3;2025-11-27,26215.6;2025-11-28,26202.9;2025-12-01,26175.8;2025-12-02,26032.2;2025-12-03,25986.0;2025-12-04,26033.8;2025-12-05,26186.4;2025-12-08,25960.6;2025-12-09,25839.7;2025-12-10,25758.0;2025-12-11,25898.6;2025-12-12,26046.9;2025-12-15,26027.3;2025-12-16,25860.1;2025-12-17,25818.6;2025-12-18,25815.6;2025-12-19,25966.4;2025-12-22,26172.4;2025-12-23,26177.2;2025-12-24,26142.1;2025-12-26,26042.3;2025-12-29,25942.1;2025-12-30,25938.8;2025-12-31,26129.6;2026-01-01,26146.6;2026-01-02,26328.6;2026-01-05,26250.3;2026-01-06,26178.7;2026-01-07,26140.8;2026-01-08,25876.8;2026-01-09,25683.3;2026-01-12,25790.3;2026-01-13,25732.3;2026-01-14,25665.6;2026-01-16,25694.3;2026-01-19,25585.5;2026-01-20,25232.5;2026-01-21,25157.5;2026-01-22,25289.9;2026-01-23,25048.7;2026-01-27,25175.4;2026-01-28,25342.8;2026-01-29,25418.9;2026-01-30,25320.7;2026-02-02,25088.4;2026-02-03,25727.6;2026-02-04,25776.0;2026-02-05,25642.8;2026-02-06,25693.7;2026-02-09,25867.3;2026-02-10,25935.2;2026-02-11,25953.8;2026-02-12,25807.2;2026-02-13,25471.1;2026-02-16,25682.8;2026-02-17,25725.4;2026-02-18,25819.3;2026-02-19,25454.3;2026-02-20,25571.3;2026-02-23,25713.0;2026-02-24,25424.7;2026-02-25,25482.5;2026-02-26,25496.6;2026-02-27,25178.7;2026-03-02,24865.7;2026-03-04,24480.5;2026-03-05,24765.9;2026-03-06,24450.4;2026-03-09,24028.1;2026-03-10,24261.6;2026-03-11,23866.8;2026-03-12,23639.2;2026-03-13,23151.1;2026-03-16,23408.8;2026-03-17,23581.2;2026-03-18,23777.8;2026-03-19,23002.2;2026-03-20,23114.5;2026-03-23,22512.7;2026-03-24,22912.4;2026-03-25,23306.4;2026-03-27,22819.6;2026-03-30,22331.4;2026-04-01,22679.4;2026-04-02,22713.1;2026-04-06,22968.3;2026-04-07,23123.7;2026-04-08,23997.3;2026-04-09,23775.1;2026-04-10,24050.6;2026-04-13,23842.7;2026-04-15,24231.3;2026-04-16,24196.8;2026-04-17,24353.6;2026-04-20,24364.8;2026-04-21,24576.6;2026-04-22,24378.1;2026-04-23,24173.1;2026-04-24,23897.9;2026-04-27,24092.7;2026-04-28,23995.7;2026-04-29,24177.7;2026-04-30,23997.6;2026-05-04,24119.3;2026-05-05,24032.8;2026-05-06,24330.9;2026-05-07,24326.7;2026-05-08,24176.2;2026-05-11,23815.8;2026-05-12,23379.6;2026-05-13,23412.6;2026-05-14,23689.6;2026-05-15,23643.5;2026-05-18,23649.9;2026-05-19,23618.0;2026-05-20,23659.0;2026-05-21,23654.7;2026-05-22,23719.3;2026-05-25,24031.7;2026-05-26,23913.7;2026-05-27,23907.2;2026-05-29,23547.8;2026-06-01,23382.6;2026-06-02,23483.6;2026-06-03,23405.6;2026-06-04,23416.6;2026-06-05,23366.7;2026-06-08,23123.0;2026-06-09,23242.1;2026-06-10,23214.9;2026-06-11,23161.6;2026-06-12,23622.9;2026-06-15,23853.9;2026-06-16,23989.2;2026-06-17,24085.7;2026-06-18,24168.0;2026-06-19,24013.1;2026-06-22,24102.9;2026-06-23,23824.1;2026-06-24,24021.7;2026-06-25,24056.0;2026-06-29,23946.3;2026-06-30,23865.8;2026-07-01,24005.8;2026-07-02,24175.7;2026-07-03,24270.8;2026-07-06,24430.3;2026-07-07,24398.7;2026-07-08,23882.1;2026-07-09,23962.8;2026-07-10,24206.9;2026-07-13,24211.0;2026-07-14,24052.1;2026-07-15,24078.5;2026-07-16,24072.8;2026-07-17,24334.3;2026-07-20,24238.5;2026-07-21,24187.7;2026-07-22,23996.3;2026-07-23,23869.6;2026-07-24,23767.4";
+const PREDICTIONS = [{"made_on": "2026-07-24", "for_date": "2026-07-27", "ref_close": 23767.4, "pred_next": 23756.0, "actual": null, "dir_hit": null}];
+
+// ---INDICATORS-START---
+function parseData(raw){
+  const dates=[],closes=[];
+  raw.split(';').forEach(r=>{const [d,c]=r.split(',');dates.push(d);closes.push(parseFloat(c));});
+  return {dates,closes};
+}
+function sma(arr,n){
+  const out=new Array(arr.length).fill(null);let sum=0;
+  for(let i=0;i<arr.length;i++){sum+=arr[i];if(i>=n)sum-=arr[i-n];if(i>=n-1)out[i]=sum/n;}
+  return out;
+}
+function ema(arr,n){
+  const out=new Array(arr.length).fill(null);const k=2/(n+1);
+  let prev=arr.slice(0,n).reduce((a,b)=>a+b,0)/n;out[n-1]=prev;
+  for(let i=n;i<arr.length;i++){prev=arr[i]*k+prev*(1-k);out[i]=prev;}
+  return out;
+}
+function rsi(arr,n){
+  const out=new Array(arr.length).fill(null);
+  let g=0,l=0;
+  for(let i=1;i<=n;i++){const d=arr[i]-arr[i-1];if(d>0)g+=d;else l-=d;}
+  let ag=g/n,al=l/n;
+  out[n]=al===0?100:100-100/(1+ag/al);
+  for(let i=n+1;i<arr.length;i++){
+    const d=arr[i]-arr[i-1];
+    ag=(ag*(n-1)+(d>0?d:0))/n;
+    al=(al*(n-1)+(d<0?-d:0))/n;
+    out[i]=al===0?100:100-100/(1+ag/al);
+  }
+  return out;
+}
+function macd(arr){
+  const e12=ema(arr,12),e26=ema(arr,26);
+  const line=arr.map((_,i)=>(e12[i]!=null&&e26[i]!=null)?e12[i]-e26[i]:null);
+  const valid=line.filter(v=>v!=null);
+  const sigValid=ema(valid,9);
+  const signal=new Array(arr.length).fill(null);
+  let vi=0;
+  for(let i=0;i<arr.length;i++){if(line[i]!=null){signal[i]=sigValid[vi];vi++;}}
+  const hist=line.map((v,i)=>(v!=null&&signal[i]!=null)?v-signal[i]:null);
+  return {line,signal,hist};
+}
+function bollinger(arr,n,k){
+  const mid=sma(arr,n);
+  const up=new Array(arr.length).fill(null),lo=new Array(arr.length).fill(null);
+  for(let i=n-1;i<arr.length;i++){
+    let s=0;for(let j=i-n+1;j<=i;j++){s+=(arr[j]-mid[i])**2;}
+    const sd=Math.sqrt(s/n);up[i]=mid[i]+k*sd;lo[i]=mid[i]-k*sd;
+  }
+  return {mid,up,lo};
+}
+function logStats(arr,n){
+  const rets=[];
+  for(let i=Math.max(1,arr.length-n);i<arr.length;i++)rets.push(Math.log(arr[i]/arr[i-1]));
+  const mu=rets.reduce((a,b)=>a+b,0)/rets.length;
+  const sd=Math.sqrt(rets.reduce((a,b)=>a+(b-mu)**2,0)/(rets.length-1));
+  return {mu,sd,n:rets.length};
+}
+function projection(arr,days,lookback){
+  const {mu,sd}=logStats(arr,lookback);
+  const S=arr[arr.length-1];
+  const med=[],up=[],lo=[];
+  for(let t=1;t<=days;t++){
+    const drift=mu*t,vol=1.28*sd*Math.sqrt(t);
+    med.push(S*Math.exp(drift));up.push(S*Math.exp(drift+vol));lo.push(S*Math.exp(drift-vol));
+  }
+  return {med,up,lo,mu,sd};
+}
+// Black-Scholes
+function normCdf(x){
+  const t=1/(1+0.2316419*Math.abs(x));
+  const d=0.3989423*Math.exp(-x*x/2);
+  const p=d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));
+  return x>0?1-p:p;
+}
+function bs(S,K,T,r,sig,type){
+  const d1=(Math.log(S/K)+(r+sig*sig/2)*T)/(sig*Math.sqrt(T));
+  const d2=d1-sig*Math.sqrt(T);
+  return type==='C'
+    ? S*normCdf(d1)-K*Math.exp(-r*T)*normCdf(d2)
+    : K*Math.exp(-r*T)*normCdf(-d2)-S*normCdf(-d1);
+}
+// ---INDICATORS-END---
+
+const {dates,closes}=parseData(RAW);
+const N=closes.length,last=closes[N-1],prev=closes[N-2];
+const s20=sma(closes,20),s50=sma(closes,50),s200=sma(closes,200);
+const r14=rsi(closes,14),m=macd(closes),bb=bollinger(closes,20,2);
+const PROJ_DAYS=30,LOOKBACK=120;
+const proj=projection(closes,PROJ_DAYS,LOOKBACK);
+const annVol=(()=>{const {sd}=logStats(closes,20);return sd*Math.sqrt(252)*100;})();
+
+function futureDates(startISO,n){
+  const out=[];const d=new Date(startISO+'T00:00:00Z');
+  while(out.length<n){d.setUTCDate(d.getUTCDate()+1);const g=d.getUTCDay();if(g!==0&&g!==6)out.push(d.toISOString().slice(0,10));}
+  return out;
+}
+const fdates=futureDates(dates[N-1],PROJ_DAYS);
+
+document.getElementById('updated').textContent=
+  `Historical daily closes ${dates[0]} → ${dates[N-1]} · ${N} sessions · Source: Yahoo Finance (^NSEI)`;
+const chg=last-prev,chgP=chg/prev*100;
+const trendSig=last>s200[N-1]?(last>s50[N-1]?'Bullish':'Mixed'):(last<s50[N-1]?'Bearish':'Mixed');
+const trendCls=trendSig==='Bullish'?'up':trendSig==='Bearish'?'down':'neu';
+document.getElementById('cards').innerHTML=`
+  <div class="card"><div class="lbl">Last Close</div><div class="val">${last.toLocaleString('en-IN')}</div><div class="sm">${dates[N-1]}</div></div>
+  <div class="card"><div class="lbl">Day Change</div><div class="val ${chg>=0?'up':'down'}">${chg>=0?'+':''}${chg.toFixed(1)} (${chgP.toFixed(2)}%)</div><div class="sm">vs ${dates[N-2]}</div></div>
+  <div class="card"><div class="lbl">RSI (14)</div><div class="val ${r14[N-1]>70?'down':r14[N-1]<30?'up':''}">${r14[N-1].toFixed(1)}</div><div class="sm">${r14[N-1]>70?'Overbought':r14[N-1]<30?'Oversold':'Neutral zone'}</div></div>
+  <div class="card"><div class="lbl">Volatility (20d ann.)</div><div class="val">${annVol.toFixed(1)}%</div><div class="sm">from log returns</div></div>
+  <div class="card"><div class="lbl">Trend (vs SMA 50/200)</div><div class="val ${trendCls}">${trendSig}</div><div class="sm">SMA50 ${s50[N-1].toFixed(0)} · SMA200 ${s200[N-1].toFixed(0)}</div></div>`;
+
+Chart.defaults.color='#8b949e';Chart.defaults.borderColor='#30363d';
+const state={range:250,sma:true,bb:false,proj:true};
+let mainChart;
+function buildMain(){
+  const start=Math.max(0,N-state.range);
+  const labels=dates.slice(start).concat(state.proj?fdates:[]);
+  const pad=arr=>arr.slice(start).concat(state.proj?new Array(PROJ_DAYS).fill(null):[]);
+  const futPad=arr=>new Array(N-start).fill(null).concat(arr);
+  const ds=[{label:'Close',data:pad(closes),borderColor:'#58a6ff',borderWidth:2,pointRadius:0,tension:.1}];
+  if(state.sma){
+    ds.push({label:'SMA 20',data:pad(s20),borderColor:'#d29922',borderWidth:1,pointRadius:0});
+    ds.push({label:'SMA 50',data:pad(s50),borderColor:'#bc8cff',borderWidth:1,pointRadius:0});
+    ds.push({label:'SMA 200',data:pad(s200),borderColor:'#f85149',borderWidth:1,pointRadius:0});
+  }
+  if(state.bb){
+    ds.push({label:'BB Upper',data:pad(bb.up),borderColor:'rgba(139,148,158,.5)',borderWidth:1,pointRadius:0,borderDash:[4,4]});
+    ds.push({label:'BB Lower',data:pad(bb.lo),borderColor:'rgba(139,148,158,.5)',borderWidth:1,pointRadius:0,borderDash:[4,4],fill:'-1',backgroundColor:'rgba(139,148,158,.06)'});
+  }
+  if(state.proj){
+    ds.push({label:'Projected median',data:futPad(proj.med),borderColor:'#3fb950',borderWidth:2,pointRadius:0,borderDash:[6,4]});
+    ds.push({label:'80% band high',data:futPad(proj.up),borderColor:'rgba(63,185,80,.35)',borderWidth:1,pointRadius:0,borderDash:[3,3]});
+    ds.push({label:'80% band low',data:futPad(proj.lo),borderColor:'rgba(63,185,80,.35)',borderWidth:1,pointRadius:0,borderDash:[3,3],fill:'-1',backgroundColor:'rgba(63,185,80,.07)'});
+  }
+  if(mainChart)mainChart.destroy();
+  mainChart=new Chart(document.getElementById('mainChart'),{
+    type:'line',data:{labels,datasets:ds},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{boxWidth:12,font:{size:11}}}},
+      scales:{x:{ticks:{maxTicksLimit:12,font:{size:10}}},y:{ticks:{font:{size:10}}}}}});
+}
+buildMain();
+document.querySelectorAll('[data-range]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('[data-range]').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');state.range=+b.dataset.range;buildMain();});
+document.querySelectorAll('[data-tog]').forEach(b=>b.onclick=()=>{
+  state[b.dataset.tog]=!state[b.dataset.tog];b.classList.toggle('on');buildMain();});
+
+new Chart(document.getElementById('rsiChart'),{type:'line',
+  data:{labels:dates.slice(-250),datasets:[{label:'RSI 14',data:r14.slice(-250),borderColor:'#d29922',borderWidth:1.5,pointRadius:0}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+    scales:{x:{ticks:{maxTicksLimit:10,font:{size:9}}},y:{min:0,max:100,ticks:{stepSize:30,font:{size:9}},grid:{color:c=>[30,70].includes(c.tick.value)?'#8b0000':'#30363d'}}}}});
+
+new Chart(document.getElementById('macdChart'),{
+  data:{labels:dates.slice(-250),datasets:[
+    {type:'bar',label:'Histogram',data:m.hist.slice(-250),backgroundColor:m.hist.slice(-250).map(v=>v>=0?'rgba(63,185,80,.55)':'rgba(248,81,73,.55)')},
+    {type:'line',label:'MACD',data:m.line.slice(-250),borderColor:'#58a6ff',borderWidth:1.5,pointRadius:0},
+    {type:'line',label:'Signal',data:m.signal.slice(-250),borderColor:'#d29922',borderWidth:1.5,pointRadius:0}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,font:{size:10}}}},
+    scales:{x:{ticks:{maxTicksLimit:10,font:{size:9}}},y:{ticks:{font:{size:9}}}}}});
+
+// ---- F&O calculator + option chain ----
+function renderFno(){
+  const dte=Math.max(1,+document.getElementById('dte').value||30);
+  const r=(+document.getElementById('rfr').value||6.5)/100;
+  const T=dte/365;
+  const fair=last*Math.exp(r*T);
+  const atm=Math.round(last/50)*50;
+  const {sd}=logStats(closes,20);
+  const sigT=sd*Math.sqrt(dte*252/365);
+  const move1=last*sigT;
+  const straddle=0.8*last*sigT;
+  const lot=75;
+  document.getElementById('fnoCards').innerHTML=`
+    <div class="card"><div class="lbl">Futures fair value (${dte}d)</div><div class="val">${fair.toFixed(1)}</div><div class="sm">spot × e^(r·T), carry only</div></div>
+    <div class="card"><div class="lbl">ATM strike</div><div class="val">${atm}</div><div class="sm">nearest 50-point strike</div></div>
+    <div class="card"><div class="lbl">Expected move (±1σ)</div><div class="val">±${move1.toFixed(0)}</div><div class="sm">${(last-move1).toFixed(0)} – ${(last+move1).toFixed(0)} (~68%)</div></div>
+    <div class="card"><div class="lbl">ATM straddle est.</div><div class="val">≈ ${straddle.toFixed(0)}</div><div class="sm">₹${(straddle*lot).toLocaleString('en-IN',{maximumFractionDigits:0})} / lot ${lot}</div></div>
+    <div class="card"><div class="lbl">Contract value</div><div class="val">₹${(last*lot/100000).toFixed(1)}L</div><div class="sm">spot × lot ${lot}</div></div>`;
+  renderChain();
+}
+function renderChain(){
+  const dte=Math.max(1,+document.getElementById('dte').value||30);
+  const r=(+document.getElementById('rfr').value||6.5)/100;
+  const nStr=Math.max(3,Math.min(15,+document.getElementById('nstr').value||8));
+  const T=dte/365,sig=annVol/100,S=last,atm=Math.round(S/50)*50;
+  const half=p=>Math.max(0.25,p*0.01+0.5);
+  let rows='';const chain=[];
+  for(let i=nStr;i>=-nStr;i--){
+    const K=atm+i*50;
+    const call=bs(S,K,T,r,sig,'C'),put=bs(S,K,T,r,sig,'P');
+    const cB=Math.max(0,call-half(call)),cA=call+half(call);
+    const pB=Math.max(0,put-half(put)),pA=put+half(put);
+    const hl=K===atm?' style="background:#1c2333"':'';
+    rows+=`<tr${hl}>
+      <td class="up">${cB.toFixed(1)}</td><td class="down">${cA.toFixed(1)}</td><td><b>${call.toFixed(1)}</b></td>
+      <td class="strike">${K}${K===atm?' •':''}</td>
+      <td><b>${put.toFixed(1)}</b></td><td class="up">${pB.toFixed(1)}</td><td class="down">${pA.toFixed(1)}</td></tr>`;
+    chain.push({K,call,put,atm});
+  }
+  document.getElementById('chainBody').innerHTML=rows;
+  window._chain=chain;
+  if(typeof update3D==='function')update3D();
+}
+renderFno();
+['dte','rfr','nstr'].forEach(id=>document.getElementById(id).oninput=renderFno);
+
+// ---- Accuracy scoreboard ----
+(function(){
+  const scored=PREDICTIONS.filter(p=>p.actual!=null);
+  const hits=scored.filter(p=>p.dir_hit).length;
+  const mae=scored.length?scored.reduce((a,p)=>a+Math.abs(p.pred_next-p.actual),0)/scored.length:0;
+  const mape=scored.length?scored.reduce((a,p)=>a+Math.abs(p.pred_next-p.actual)/p.actual*100,0)/scored.length:0;
+  const pending=PREDICTIONS.find(p=>p.actual==null);
+  const hr=scored.length?hits/scored.length*100:0;
+  document.getElementById('scoreCards').innerHTML=`
+    <div class="card"><div class="lbl">Predictions scored</div><div class="val">${scored.length}</div><div class="sm">since tracking began</div></div>
+    <div class="card"><div class="lbl">Directional accuracy</div><div class="val ${scored.length?(hr>=50?'up':'down'):''}">${scored.length?hr.toFixed(0)+'%':'—'}</div><div class="sm">50% = coin flip</div></div>
+    <div class="card"><div class="lbl">Mean abs error</div><div class="val">${scored.length?mae.toFixed(0):'—'}</div><div class="sm">${scored.length?mape.toFixed(2)+'% of price':'awaiting data'}</div></div>
+    <div class="card"><div class="lbl">Next prediction</div><div class="val">${pending?pending.pred_next.toFixed(0):'—'}</div><div class="sm">${pending?'for '+pending.for_date:'none pending'}</div></div>`;
+  const rows=PREDICTIONS.slice().reverse().slice(0,15).map(p=>{
+    const dir=p.actual==null?'<span class="neu">pending</span>':(p.dir_hit?'<span class="up">✓ hit</span>':'<span class="down">✗ miss</span>');
+    const err=p.actual==null?'—':Math.abs(p.pred_next-p.actual).toFixed(1);
+    const act=p.actual==null?'—':p.actual.toFixed(1);
+    return `<tr><td>${p.made_on}</td><td>${p.for_date}</td><td>${p.ref_close.toFixed(1)}</td><td>${p.pred_next.toFixed(1)}</td><td>${act}</td><td>${err}</td><td>${dir}</td></tr>`;
+  }).join('');
+  document.querySelector('#scoreTable tbody').innerHTML=rows||'<tr><td colspan="7" style="color:#8b949e">No predictions logged yet — the daily job will start filling this in.</td></tr>';
+})();
+
+// ---- Signals ----
+const goldenCross=s50[N-1]>s200[N-1];
+const macdBull=m.line[N-1]>m.signal[N-1];
+const hi52=Math.max(...closes.slice(-250)),lo52=Math.min(...closes.slice(-250));
+const rows=[
+  ['Price vs SMA 200',`${last.toFixed(0)} vs ${s200[N-1].toFixed(0)}`,last>s200[N-1]?['Above — long-term uptrend','up']:['Below — long-term downtrend','down']],
+  ['Price vs SMA 50',`${last.toFixed(0)} vs ${s50[N-1].toFixed(0)}`,last>s50[N-1]?['Above — medium-term strength','up']:['Below — medium-term weakness','down']],
+  ['SMA 50 vs SMA 200',`${s50[N-1].toFixed(0)} vs ${s200[N-1].toFixed(0)}`,goldenCross?['Golden-cross regime','up']:['Death-cross regime','down']],
+  ['RSI (14)',r14[N-1].toFixed(1),r14[N-1]>70?['Overbought — stretch risk','down']:r14[N-1]<30?['Oversold — bounce candidate','up']:['Neutral','neu']],
+  ['MACD vs Signal',`${m.line[N-1].toFixed(1)} vs ${m.signal[N-1].toFixed(1)}`,macdBull?['Bullish momentum','up']:['Bearish momentum','down']],
+  ['52-week range',`${lo52.toFixed(0)} – ${hi52.toFixed(0)}`,[`${((last-lo52)/(hi52-lo52)*100).toFixed(0)}% of range from low`,'neu']],
+  [`Projected median (+${PROJ_DAYS}d)`,proj.med[PROJ_DAYS-1].toFixed(0),
+    [`80% band: ${proj.lo[PROJ_DAYS-1].toFixed(0)} – ${proj.up[PROJ_DAYS-1].toFixed(0)} (drift ${(proj.mu*100).toFixed(3)}%/d, σ ${(proj.sd*100).toFixed(2)}%/d over ${LOOKBACK} sessions)`, proj.mu>=0?'up':'down']]
+];
+document.querySelector('#sigTable tbody').innerHTML=
+  rows.map(([a,b,[t,c]])=>`<tr><td>${a}</td><td>${b}</td><td class="${c}">${t}</td></tr>`).join('');
+
+// ---- At-a-glance sentiment gauge ----
+(function(){
+  let sc=0;
+  sc+=last>s200[N-1]?25:-25;
+  sc+=last>s50[N-1]?20:-20;
+  sc+=goldenCross?15:-15;
+  sc+=Math.max(-20,Math.min(20,(r14[N-1]-50)/50*20));
+  sc+=macdBull?20:-20;
+  sc=Math.max(-100,Math.min(100,sc));
+  const cx=122,cy=122,rr=94;
+  const th=(90-0.9*sc)*Math.PI/180;
+  const tx=cx+rr*Math.cos(th),ty=cy-rr*Math.sin(th);
+  const w=sc>40?['Bullish','#3fb950']:sc>15?['Leaning Bullish','#7ee787']:sc>-15?['Neutral','#d29922']:sc>-40?['Leaning Bearish','#ffa198']:['Bearish','#f85149'];
+  document.getElementById('gauge').innerHTML=
+   `<svg width="248" height="150" viewBox="0 0 248 150">
+      <defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#f85149"/><stop offset="0.5" stop-color="#d29922"/><stop offset="1" stop-color="#3fb950"/></linearGradient></defs>
+      <path d="M ${cx-rr} ${cy} A ${rr} ${rr} 0 0 1 ${cx+rr} ${cy}" fill="none" stroke="url(#gg)" stroke-width="16" stroke-linecap="round"/>
+      <line x1="${cx}" y1="${cy}" x2="${tx.toFixed(1)}" y2="${ty.toFixed(1)}" stroke="#e6edf3" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="${cx}" cy="${cy}" r="7" fill="#e6edf3"/>
+      <text x="26" y="146" fill="#8b949e" font-size="11">Bearish</text>
+      <text x="196" y="146" fill="#8b949e" font-size="11">Bullish</text>
+    </svg>`;
+  document.getElementById('verdictWord').innerHTML=`<span style="color:${w[1]}">${w[0]}</span>`;
+  const parts=[
+    last>s200[N-1]?'trading above its 200-day average (long-term uptrend)':'below its 200-day average (long-term downtrend)',
+    macdBull?'short-term momentum is positive':'short-term momentum is negative',
+    r14[N-1]>70?'and momentum looks overbought':r14[N-1]<30?'and it looks oversold':'with RSI in neutral territory'
+  ];
+  document.getElementById('verdictExplain').textContent=
+    `Nifty is ${parts.join(', ')}. This is a mechanical read of past prices, not a recommendation — the gauge weighs trend, momentum and RSI into a single -100 to +100 score (${sc.toFixed(0)}).`;
+})();
+
+// ---- 3D option premium landscape (Three.js) ----
+var _scene,_cam,_renderer,_group,_bars,_rot=0,_spin=true,_drag=false,_lx=0;
+function init3D(){
+  const el=document.getElementById('three3d');if(!el||!window.THREE)return;
+  const w=el.clientWidth||800,h=el.clientHeight||440;
+  _scene=new THREE.Scene();
+  _cam=new THREE.PerspectiveCamera(48,w/h,0.1,500);
+  _cam.position.set(0,20,38);_cam.lookAt(0,5,0);
+  _renderer=new THREE.WebGLRenderer({alpha:true,antialias:true});
+  _renderer.setSize(w,h);_renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+  el.appendChild(_renderer.domElement);
+  _scene.add(new THREE.AmbientLight(0xffffff,0.65));
+  const dl=new THREE.DirectionalLight(0xffffff,0.85);dl.position.set(12,24,14);_scene.add(dl);
+  const dl2=new THREE.DirectionalLight(0x58a6ff,0.3);dl2.position.set(-14,10,-10);_scene.add(dl2);
+  _group=new THREE.Group();_scene.add(_group);
+  const grid=new THREE.GridHelper(44,22,0x30363d,0x1c222b);_group.add(grid);
+  el.addEventListener('pointerdown',e=>{_drag=true;_lx=e.clientX;el.style.cursor='grabbing';});
+  window.addEventListener('pointerup',()=>{_drag=false;if(el)el.style.cursor='grab';});
+  window.addEventListener('pointermove',e=>{if(_drag){_rot+=(e.clientX-_lx)*0.01;_lx=e.clientX;}});
+  window.addEventListener('resize',()=>{const w=el.clientWidth,h=el.clientHeight;if(!w)return;_cam.aspect=w/h;_cam.updateProjectionMatrix();_renderer.setSize(w,h);});
+  const btn=document.getElementById('spinBtn');
+  btn.onclick=()=>{_spin=!_spin;btn.classList.toggle('on',_spin);btn.textContent='Auto-rotate: '+(_spin?'on':'off');};
+  update3D();animate3D();
+}
+function animate3D(){requestAnimationFrame(animate3D);if(_spin&&!_drag)_rot+=0.004;if(_group)_group.rotation.y=_rot;if(_renderer)_renderer.render(_scene,_cam);}
+function makeLabel(text,color,worldW){
+  const cv=document.createElement('canvas');
+  const font='bold 48px Segoe UI, Arial, sans-serif';
+  let ctx=cv.getContext('2d');ctx.font=font;
+  const pad=18,w=Math.ceil(ctx.measureText(text).width)+pad*2,h=76;
+  cv.width=w;cv.height=h;
+  ctx=cv.getContext('2d');ctx.font=font;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillStyle=color||'#e6edf3';ctx.fillText(text,w/2,h/2);
+  const tex=new THREE.CanvasTexture(cv);tex.anisotropy=4;tex.needsUpdate=true;
+  const mat=new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false,depthWrite:false});
+  const sp=new THREE.Sprite(mat);const aspect=w/h,ww=worldW||4;
+  sp.scale.set(ww,ww/aspect,1);return sp;
+}
+function update3D(){
+  if(!_scene)return;
+  if(_bars){_group.remove(_bars);_bars.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){if(o.material.map)o.material.map.dispose();o.material.dispose();}});}
+  _bars=new THREE.Group();
+  let arr=window._chain||[];
+  const maxN=13;
+  if(arr.length>maxN){const s=Math.floor((arr.length-maxN)/2);arr=arr.slice(s,s+maxN);}
+  if(!arr.length){return;}
+  const maxP=Math.max(1,...arr.map(d=>Math.max(d.call,d.put)));
+  const span=arr.length,gap=2.9;
+  const leftX=(-(span-1)/2)*gap;
+  arr.forEach((d,i)=>{
+    const x=(i-(span-1)/2)*gap;
+    const isAtm=d.K===d.atm;
+    [['call',-2.9,0x3fb950,'#7ee787'],['put',2.9,0xf85149,'#ffa198']].forEach(([k,z,col,tcol])=>{
+      const hgt=Math.max(0.08,d[k]/maxP*13);
+      const geo=new THREE.BoxGeometry(1.7,hgt,1.7);
+      const mat=new THREE.MeshPhongMaterial({color:col,shininess:70,transparent:true,opacity:isAtm?1:0.82,emissive:col,emissiveIntensity:isAtm?0.35:0.08});
+      const mesh=new THREE.Mesh(geo,mat);mesh.position.set(x,hgt/2,z);_bars.add(mesh);
+      const pl=makeLabel('₹'+Math.round(d[k]),tcol,2.6);
+      pl.position.set(x,hgt+1.1,z);_bars.add(pl);
+    });
+    const sl=makeLabel(String(d.K),isAtm?'#ffffff':'#c9d1d9',isAtm?3.6:3.0);
+    sl.position.set(x,0.7,0);_bars.add(sl);
+    if(isAtm){const at=makeLabel('▲ ATM','#d29922',2.6);at.position.set(x,2.2,0);_bars.add(at);}
+  });
+  const cl=makeLabel('CALLS','#3fb950',4);cl.position.set(leftX-gap*1.5,1.4,-2.9);_bars.add(cl);
+  const pu=makeLabel('PUTS','#f85149',4);pu.position.set(leftX-gap*1.5,1.4,2.9);_bars.add(pu);
+  const ti=makeLabel('NIFTY 50 OPTIONS  ·  theoretical premium (₹) by strike','#e6edf3',17);
+  ti.position.set(0,15.5,0);_bars.add(ti);
+  _group.add(_bars);
+}
+if(window.THREE){init3D();}else{window.addEventListener('load',init3D);}
+</script>
+</body>
+</html>
