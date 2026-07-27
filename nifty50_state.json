@@ -1983,6 +1983,10 @@
 [
 "2026-07-24",
 23767.4
+],
+[
+"2026-07-27",
+23995.9
 ]
 ],
 "predictions": [
@@ -1991,6 +1995,16 @@
 "for_date": "2026-07-27",
 "ref_close": 23767.4,
 "pred_next": 23756.0,
+"actual": 23995.9,
+"dir_hit": false,
+"abs_err": 239.9,
+"pct_err": 1.0
+},
+{
+"made_on": "2026-07-27",
+"for_date": "2026-07-28",
+"ref_close": 23995.9,
+"pred_next": 23984.98,
 "actual": null,
 "dir_hit": null
 }
