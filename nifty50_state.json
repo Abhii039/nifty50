@@ -18523,6 +18523,10 @@
 [
 "2026-08-04",
 24614.9
+],
+[
+"2026-08-05",
+24624.7
 ]
 ],
 "predictions": [
@@ -18601,6 +18605,16 @@
 "for_date": "2026-08-05",
 "ref_close": 24614.9,
 "pred_next": 24623.94,
+"actual": 24624.7,
+"dir_hit": true,
+"abs_err": 0.76,
+"pct_err": 0.003
+},
+{
+"made_on": "2026-08-05",
+"for_date": "2026-08-06",
+"ref_close": 24624.7,
+"pred_next": 24633.75,
 "actual": null,
 "dir_hit": null
 }
