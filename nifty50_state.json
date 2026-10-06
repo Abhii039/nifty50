@@ -18671,6 +18671,10 @@
 [
 "2026-10-01",
 22421.9
+],
+[
+"2026-10-05",
+22555.8
 ]
 ],
 "predictions": [
@@ -19119,6 +19123,16 @@
 "for_date": "2026-10-02",
 "ref_close": 22421.9,
 "pred_next": 22414.18,
+"actual": 22555.8,
+"dir_hit": false,
+"abs_err": 141.62,
+"pct_err": 0.628
+},
+{
+"made_on": "2026-10-05",
+"for_date": "2026-10-06",
+"ref_close": 22555.8,
+"pred_next": 22563.6,
 "actual": null,
 "dir_hit": null
 }
